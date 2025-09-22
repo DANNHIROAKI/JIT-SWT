@@ -25,8 +25,8 @@
 1. 克隆本仓库:
 
    ```
-   git clone <your-repository-url>
-   cd <repository-name>
+   git clone https://github.com/Rye-wisky/SWT
+   cd SWT
    ```
 
 2. 安装依赖环境:
@@ -34,9 +34,7 @@
    ```
    pip install -r requirements.txt
    ```
-
-   *(注: `requirements.txt` 文件需要您根据项目中使用到的库手动创建，主要应包含 `torch`, `numpy`, `pandas`, `seaborn`, `matplotlib`, `tqdm`, `networkx`, `scipy`, `scikit-learn` 等)*
-
+   
 ## 复现实验
 
 您可以通过 `run.py` 脚本轻松复现论文中的所有实验。
