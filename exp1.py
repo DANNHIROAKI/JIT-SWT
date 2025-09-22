@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torchvision.datasets import MNIST
 from torchvision import transforms
 
-from compiler import DuanLiu_SWT_Compiler, DEVICE, plot_compilation_error
+from compiler import SWT_Compiler, DEVICE, plot_compilation_error
 
 # =============================================================================
 # --- 模型定义 (Model Definition) ---
@@ -82,7 +82,7 @@ def run():
     print("FFN training complete.")
     report = {}
     
-    compiler = DuanLiu_SWT_Compiler(model, input_dim=28*28, initial_shape=(1, 28, 28))
+    compiler = SWT_Compiler(model, input_dim=28*28, initial_shape=(1, 28, 28))
     print("Dynamically compiling for all test samples to get Lipschitz distribution...")
     
     lipschitz_results = []

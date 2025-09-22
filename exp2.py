@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torchvision.datasets import CIFAR10
 from torchvision import transforms
 
-from compiler import DuanLiu_SWT_Compiler, DEVICE, plot_compilation_error
+from compiler import SWT_Compiler, DEVICE, plot_compilation_error
 
 # =============================================================================
 # --- 模型定义 (Model Definition) ---
@@ -123,7 +123,7 @@ def run():
     model_A.eval()
     print("CNN_A training complete.")
 
-    compiler_A = DuanLiu_SWT_Compiler(model_A, input_dim=3*32*32, initial_shape=(3,32,32))
+    compiler_A = SWT_Compiler(model_A, input_dim=3*32*32, initial_shape=(3,32,32))
     
     num_compile_samples = 100
     print(f"Dynamically compiling for {num_compile_samples} CNN samples...")

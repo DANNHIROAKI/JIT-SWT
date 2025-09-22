@@ -13,7 +13,7 @@ from typing import List, Tuple
 from matplotlib.patches import Patch
 
 from compiler import (
-    DuanLiu_SWT_Compiler, BranchAndBoundSolver, Guard, DEVICE
+    SWT_Compiler, BranchAndBoundSolver, Guard, DEVICE
 )
 
 
@@ -105,7 +105,7 @@ class IntervenedGNN(nn.Module):
 
 def verify_compilation_equivalence(
         model: GNN,
-        compiler: DuanLiu_SWT_Compiler,
+        compiler: SWT_Compiler,
         features_tensor: torch.Tensor,
         adj_tensor: torch.Tensor,
         num_tests: int = 100
@@ -162,7 +162,7 @@ def verify_permutation_equivariance(
     norm_adj_orig = np.diag(d_inv_sqrt_orig).dot(adj_loop_orig).dot(np.diag(d_inv_sqrt_orig))
     adj_tensor_orig = torch.tensor(norm_adj_orig, dtype=torch.float32).to(DEVICE)
 
-    compiler_orig = DuanLiu_SWT_Compiler(
+    compiler_orig = SWT_Compiler(
         model,
         input_dim=features.size,
         initial_shape=features.shape,
@@ -193,7 +193,7 @@ def verify_permutation_equivariance(
         adj_tensor_perm = torch.tensor(norm_adj_perm, dtype=torch.float32).to(DEVICE)
 
         # --- 3. 计算置换输入的符号化输出 F(Px) ---
-        compiler_perm = DuanLiu_SWT_Compiler(
+        compiler_perm = SWT_Compiler(
             model,
             input_dim=features_perm.size,
             initial_shape=features_perm.shape,
@@ -221,7 +221,7 @@ def verify_permutation_equivariance(
 
 def calculate_imax_for_channel(
         model: GNN,
-        compiler_F: DuanLiu_SWT_Compiler,
+        compiler_F: SWT_Compiler,
         initial_guard: Guard,
         channel_to_intervene: int,
         num_nodes: int,
@@ -235,7 +235,7 @@ def calculate_imax_for_channel(
         model, [channel_to_intervene], num_nodes, hidden_dim
     ).to(DEVICE).eval()
 
-    compiler_C = DuanLiu_SWT_Compiler(
+    compiler_C = SWT_Compiler(
         model_C,
         input_dim=features_tensor.numel(),
         initial_shape=features_tensor.shape,
@@ -428,7 +428,7 @@ def run():
     model.eval();
     print("GNN training complete.")
 
-    compiler_F = DuanLiu_SWT_Compiler(model, input_dim=features_tensor.numel(), initial_shape=features_tensor.shape,
+    compiler_F = SWT_Compiler(model, input_dim=features_tensor.numel(), initial_shape=features_tensor.shape,
                                       adj_matrix=adj_tensor)
 
     # --- 新增步骤 1: 编译验证 ---

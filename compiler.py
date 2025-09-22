@@ -333,7 +333,7 @@ class WeightedAutomaton:
         
         return state.piece
 
-class DuanLiu_SWT_Compiler:
+class SWT_Compiler:
     def __init__(self, model: nn.Module, input_dim: int,
                  input_domain: Optional[Guard] = None,
                  initial_shape: Optional[Tuple] = None,
@@ -374,7 +374,7 @@ class DuanLiu_SWT_Compiler:
 # =============================================================================
 
 class BranchAndBoundSolver:
-    def __init__(self, compiler_F: DuanLiu_SWT_Compiler, compiler_C: DuanLiu_SWT_Compiler, initial_guard: Guard):
+    def __init__(self, compiler_F: SWT_Compiler, compiler_C: SWT_Compiler, initial_guard: Guard):
         self.compiler_F = compiler_F
         self.compiler_C = compiler_C
         self.initial_guard = initial_guard
