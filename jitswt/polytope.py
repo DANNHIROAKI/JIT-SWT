@@ -57,7 +57,11 @@ class Polytope:
             res_max = linprog(-coeff_arr, A_ub=self.A, b_ub=self.b, bounds=bounds)  # type: ignore[arg-type]
             res_min = linprog(coeff_arr, A_ub=self.A, b_ub=self.b, bounds=bounds)  # type: ignore[arg-type]
             if res_max.success and res_min.success:
-                return (-res_min.fun + bias, -res_max.fun + bias)
+                # ``linprog`` returns the value of the minimised objective.  For the
+                # maximum we minimise ``-coeff @ x`` and negate the optimum.  For the
+                # minimum we minimise ``coeff @ x`` directly.  In both cases the
+                # constant ``bias`` must be added to obtain the affine form bounds.
+                return (res_min.fun + bias, -res_max.fun + bias)
         # Fallback vertex enumeration
         vertices = self._enumerate_vertices(atol)
         if not vertices:

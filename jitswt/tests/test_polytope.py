@@ -7,8 +7,8 @@ def test_bounds_on_linear_form_box():
     poly = Polytope.from_bounds([-1, -2], [1, 2])
     coeff = np.array([1.0, -1.0])
     lb, ub = poly.bounds_on_linear_form(coeff, 0.5)
-    assert np.isclose(lb, -1.5)
-    assert np.isclose(ub, 2.5)
+    assert np.isclose(lb, -2.5)
+    assert np.isclose(ub, 3.5)
 
 
 def test_contains_point():
