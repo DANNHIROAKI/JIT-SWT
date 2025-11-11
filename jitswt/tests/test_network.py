@@ -21,6 +21,14 @@ def build_max_network():
     return builder.build(domain)
 
 
+def build_multi_max_network():
+    builder = NetworkBuilder(input_dim=3)
+    builder.add_affine(np.eye(3), np.zeros(3))
+    builder.add_max_pairs([(0, 1, 2)])
+    domain = Polytope.from_bounds([-1, -1, -1], [1, 1, 1])
+    return builder.build(domain)
+
+
 def test_evaluate_matches_numpy():
     net = build_simple_network()
     x = np.array([0.5, -0.2])
@@ -80,3 +88,18 @@ def test_max_layer_piece_shapes():
             break
     else:
         raise AssertionError("point not covered by any piece")
+
+
+def test_max_layer_supports_larger_groups():
+    net = build_multi_max_network()
+    points = [np.array([0.3, -0.2, 0.5]), np.array([-0.7, 0.2, -0.4])]
+    pieces = net.enumerate_pieces()
+    assert pieces
+    for x in points:
+        expected = net.evaluate(x)
+        for piece in pieces:
+            if piece.polytope.contains(x):
+                assert np.allclose(piece.evaluate(x), expected)
+                break
+        else:  # pragma: no cover - indicates missing coverage
+            raise AssertionError("point not covered by any piece")

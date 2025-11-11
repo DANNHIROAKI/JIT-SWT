@@ -119,43 +119,45 @@ class MaxLayer:
     groups: Sequence[Sequence[int]]
 
     def apply(self, piece: LinearPiece, library: GuardLibrary, atol: float = 1e-9) -> List[LinearPiece]:
-        if any(len(group) != 2 for group in self.groups):
-            raise NotImplementedError("MaxLayer currently supports pairwise maxima only")
         selections: List[tuple[LinearPiece, List[int]]] = [(piece, [])]
         for group in self.groups:
             if not group:
                 raise ValueError("max group must be non-empty")
             updated: List[tuple[LinearPiece, List[int]]] = []
             for current, chosen in selections:
-                i, j = group
-                w_i = current.matrix[i].copy()
-                b_i = float(current.bias[i])
-                w_j = current.matrix[j].copy()
-                b_j = float(current.bias[j])
-                lb_i, ub_i = current.polytope.bounds_on_linear_form(w_i, b_i)
-                lb_j, ub_j = current.polytope.bounds_on_linear_form(w_j, b_j)
-                if lb_i >= ub_j - atol:
-                    updated.append((current, chosen + [i]))
-                    continue
-                if lb_j >= ub_i - atol:
-                    updated.append((current, chosen + [j]))
-                    continue
-                diff = w_i - w_j
-                offset = b_j - b_i
-                pos_guard = library.register(-diff, -offset)
-                neg_guard = library.register(diff, offset)
-                pos_poly = current.polytope.intersection_with_halfspace(-diff, -offset)
-                if pos_poly.is_feasible(atol):
-                    pos_piece = current.copy()
-                    pos_piece.guard = current.guard.add(pos_guard)
-                    pos_piece.polytope = pos_poly
-                    updated.append((pos_piece, chosen + [i]))
-                neg_poly = current.polytope.intersection_with_halfspace(diff, offset)
-                if neg_poly.is_feasible(atol):
-                    neg_piece = current.copy()
-                    neg_piece.guard = current.guard.add(neg_guard)
-                    neg_piece.polytope = neg_poly
-                    updated.append((neg_piece, chosen + [j]))
+                for idx in group:
+                    candidate_piece = current.copy()
+                    candidate_guard = current.guard
+                    candidate_poly = current.polytope
+                    feasible = True
+                    for other in group:
+                        if other == idx:
+                            continue
+                        w_i = candidate_piece.matrix[idx].copy()
+                        b_i = float(candidate_piece.bias[idx])
+                        w_j = candidate_piece.matrix[other].copy()
+                        b_j = float(candidate_piece.bias[other])
+                        lb_i, ub_i = candidate_poly.bounds_on_linear_form(w_i, b_i)
+                        lb_j, ub_j = candidate_poly.bounds_on_linear_form(w_j, b_j)
+                        if lb_i >= ub_j - atol:
+                            continue
+                        if lb_j >= ub_i - atol:
+                            feasible = False
+                            break
+                        diff = w_i - w_j
+                        offset = b_j - b_i
+                        guard_normal = -diff
+                        guard_offset = -offset
+                        guard_id = library.register(guard_normal, guard_offset)
+                        candidate_poly = candidate_poly.intersection_with_halfspace(guard_normal, guard_offset)
+                        if not candidate_poly.is_feasible(atol):
+                            feasible = False
+                            break
+                        candidate_guard = candidate_guard.add(guard_id)
+                    if feasible and candidate_poly.is_feasible(atol):
+                        candidate_piece.guard = candidate_guard
+                        candidate_piece.polytope = candidate_poly
+                        updated.append((candidate_piece, chosen + [idx]))
             selections = updated
         result: List[LinearPiece] = []
         for current, chosen in selections:
