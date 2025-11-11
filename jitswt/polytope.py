@@ -1,104 +1,115 @@
-"""Basic polytope utilities used by the CPWL/JIT toolchain."""
-
+"""Basic polytope utilities used by the JIT-SWT implementation."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, Sequence, Tuple
 
-from .linalg import Matrix, Vector, as_vector, matrix_rank, matvec, solve
+import numpy as np
+
+try:  # Optional SciPy dependency used when available
+    from scipy.optimize import linprog  # type: ignore
+except Exception:  # pragma: no cover - SciPy is optional
+    linprog = None  # type: ignore
 
 
 @dataclass
 class Polytope:
-    r"""Convex polytope :math:`\{x \mid Ax \le b\}`."""
+    """Convex polytope :math:`\{x \mid Ax \le b\}`."""
 
-    A: Matrix
-    b: Vector
+    A: np.ndarray
+    b: np.ndarray
 
     def __post_init__(self) -> None:
-        if len(self.A) != len(self.b):
+        if self.A.ndim != 2:
+            raise ValueError("A must be a 2D array")
+        if self.b.ndim != 1:
+            raise ValueError("b must be a 1D array")
+        if self.A.shape[0] != self.b.shape[0]:
             raise ValueError("A and b shapes incompatible")
-        if not self.A:
-            raise ValueError("matrix A must not be empty")
-        width = len(self.A[0])
-        for row in self.A:
-            if len(row) != width:
-                raise ValueError("matrix rows must have equal length")
-        self._dim = width
+        self._dim = self.A.shape[1]
 
     @property
     def dimension(self) -> int:
         return self._dim
 
     def intersection_with_halfspace(self, normal: Iterable[float], offset: float) -> "Polytope":
-        normal_vec = as_vector(normal)
-        if len(normal_vec) != self.dimension:
+        normal_arr = np.asarray(list(normal), dtype=float)
+        if normal_arr.shape != (self.dimension,):
             raise ValueError("dimension mismatch")
-        new_A = tuple(self.A + (normal_vec,))
-        new_b = tuple(self.b + (float(offset),))
+        new_A = np.vstack([self.A, normal_arr])
+        new_b = np.concatenate([self.b, [float(offset)]])
         return Polytope(new_A, new_b)
 
     def contains(self, point: Sequence[float], atol: float = 1e-9) -> bool:
-        x = as_vector(point)
-        if len(x) != self.dimension:
+        x = np.asarray(list(point), dtype=float)
+        if x.shape != (self.dimension,):
             raise ValueError("dimension mismatch")
-        values = matvec(self.A, x)
-        return all(val <= bound + atol for val, bound in zip(values, self.b))
+        return bool(np.all(self.A @ x <= self.b + atol))
 
     def bounds_on_linear_form(self, coeff: Iterable[float], bias: float = 0.0, atol: float = 1e-9) -> Tuple[float, float]:
-        coeff_vec = as_vector(coeff)
-        if len(coeff_vec) != self.dimension:
+        coeff_arr = np.asarray(list(coeff), dtype=float)
+        if coeff_arr.shape != (self.dimension,):
             raise ValueError("dimension mismatch")
         bias = float(bias)
+        if linprog is not None:
+            bounds = [(None, None)] * self.dimension
+            res_max = linprog(-coeff_arr, A_ub=self.A, b_ub=self.b, bounds=bounds)  # type: ignore[arg-type]
+            res_min = linprog(coeff_arr, A_ub=self.A, b_ub=self.b, bounds=bounds)  # type: ignore[arg-type]
+            if res_max.success and res_min.success:
+                return (-res_min.fun + bias, -res_max.fun + bias)
+        # Fallback vertex enumeration
         vertices = self._enumerate_vertices(atol)
         if not vertices:
             raise RuntimeError("polytope appears empty or unbounded")
-        values = [sum(c * x for c, x in zip(coeff_vec, vertex)) + bias for vertex in vertices]
+        values = [coeff_arr @ v + bias for v in vertices]
         return float(min(values)), float(max(values))
 
-    def _enumerate_vertices(self, atol: float) -> List[Vector]:
-        vertices: List[Vector] = []
-        rows = list(range(len(self.A)))
-        for idxs in combinations(rows, self.dimension):
-            Ai = tuple(self.A[i] for i in idxs)
-            if matrix_rank(Ai, atol) < self.dimension:
+    def _enumerate_vertices(self, atol: float) -> Sequence[np.ndarray]:
+        m, n = self.A.shape
+        vertices = []
+        for idxs in combinations(range(m), n):
+            Ai = self.A[list(idxs), :]
+            if np.linalg.matrix_rank(Ai) < n:
                 continue
-            bi = tuple(self.b[i] for i in idxs)
+            bi = self.b[list(idxs)]
             try:
-                sol = solve(Ai, bi, atol)
-            except ValueError:
+                sol = np.linalg.solve(Ai, bi)
+            except np.linalg.LinAlgError:
                 continue
-            if self.contains(sol, atol):
+            if np.all(self.A @ sol <= self.b + atol):
                 vertices.append(sol)
         return vertices
 
-    def project_box(self) -> Tuple[Vector, Vector]:
-        lowers: List[float] = []
-        uppers: List[float] = []
-        for dim in range(self.dimension):
-            coeff = [0.0] * self.dimension
-            coeff[dim] = 1.0
+    def project_box(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Return per-dimension min/max bounds by solving :math:`2n` LPs."""
+
+        lowers = []
+        uppers = []
+        for i in range(self.dimension):
+            coeff = np.zeros(self.dimension)
+            coeff[i] = 1.0
             lb, ub = self.bounds_on_linear_form(coeff, 0.0)
             lowers.append(lb)
             uppers.append(ub)
-        return tuple(lowers), tuple(uppers)
+        return np.array(lowers), np.array(uppers)
 
     @staticmethod
     def from_bounds(lower: Sequence[float], upper: Sequence[float]) -> "Polytope":
-        lower_vec = as_vector(lower)
-        upper_vec = as_vector(upper)
-        if len(lower_vec) != len(upper_vec):
-            raise ValueError("shape mismatch")
-        rows: List[Vector] = []
-        bounds: List[float] = []
-        for i in range(len(lower_vec)):
-            unit = [0.0] * len(lower_vec)
-            unit[i] = 1.0
-            rows.append(tuple(unit))
-            bounds.append(upper_vec[i])
-            unit[i] = -1.0
-            rows.append(tuple(unit))
-            bounds.append(-lower_vec[i])
-        return Polytope(tuple(rows), tuple(bounds))
-
+        lower_arr = np.asarray(list(lower), dtype=float)
+        upper_arr = np.asarray(list(upper), dtype=float)
+        if lower_arr.shape != upper_arr.shape:
+            raise ValueError("shapes mismatch")
+        A = []
+        b = []
+        dim = lower_arr.shape[0]
+        for i in range(dim):
+            row = np.zeros(dim)
+            row[i] = 1.0
+            A.append(row)
+            b.append(upper_arr[i])
+            row = np.zeros(dim)
+            row[i] = -1.0
+            A.append(row)
+            b.append(-lower_arr[i])
+        return Polytope(np.asarray(A), np.asarray(b))

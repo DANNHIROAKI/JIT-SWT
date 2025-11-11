@@ -7,7 +7,7 @@ from .guard import GuardLibrary, GuardSet
 from .polytope import Polytope
 from .layers import AffineLayer, ReLULayer, LeakyReLULayer, MaxLayer
 from .network import CPWLNetwork, NetworkBuilder
-from .jit import BranchAndBoundAnalyzer, JITBranchAndBound, MaximizationResult
+from .jit import BranchAndBoundAnalyzer
 
 __all__ = [
     "GuardLibrary",
@@ -20,6 +20,4 @@ __all__ = [
     "CPWLNetwork",
     "NetworkBuilder",
     "BranchAndBoundAnalyzer",
-    "JITBranchAndBound",
-    "MaximizationResult",
 ]
