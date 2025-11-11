@@ -17,7 +17,10 @@ def test_evaluate_matches_numpy():
     net = build_simple_network()
     x = np.array([0.5, -0.2])
     y = net.evaluate(x)
-    expected = np.array([0.0])
+    # Manual feed-forward computation for the tiny network used in the test.
+    hidden = np.array([[1.0, -1.0], [0.5, 0.5]]) @ x
+    hidden = np.maximum(hidden, 0.0)
+    expected = np.array([[2.0, -1.0]]) @ hidden
     assert np.allclose(y, expected)
 
 
