@@ -30,6 +30,7 @@ class GuardLibrary:
         self._atol = atol
         self._guards: Dict[Tuple[int, ...], Halfspace] = {}
         self._lookup: Dict[Tuple[int, ...], int] = {}
+        self._by_id: Dict[int, Halfspace] = {}
         self._next_id = 0
 
     @property
@@ -52,17 +53,18 @@ class GuardLibrary:
         self._guards[key] = guard
         idx = self._next_id
         self._lookup[key] = idx
+        self._by_id[idx] = guard
         self._next_id += 1
         return idx
 
     def get(self, guard_id: int) -> Halfspace:
-        for key, idx in self._lookup.items():
-            if idx == guard_id:
-                return self._guards[key]
-        raise KeyError(f"unknown guard id {guard_id}")
+        try:
+            return self._by_id[guard_id]
+        except KeyError as exc:  # pragma: no cover - defensive programming
+            raise KeyError(f"unknown guard id {guard_id}") from exc
 
     def guards(self) -> Dict[int, Halfspace]:
-        return {idx: self._guards[key] for key, idx in self._lookup.items()}
+        return dict(self._by_id)
 
 
 class GuardSet:

@@ -63,9 +63,9 @@ class CPWLNetwork:
             elif isinstance(layer, MaxLayer):
                 outputs = []
                 for group in layer.groups:
-                    if len(group) != 2:
-                        raise NotImplementedError("MaxLayer evaluate currently supports pairs")
-                    outputs.append(max(current[group[0]], current[group[1]]))
+                    if not group:
+                        raise ValueError("max group must contain at least one index")
+                    outputs.append(np.max(current[np.array(group, dtype=int)]))
                 current = np.asarray(outputs)
             else:  # pragma: no cover - future extension
                 raise TypeError(f"unsupported layer {layer}")
