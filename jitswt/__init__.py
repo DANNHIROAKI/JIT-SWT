@@ -5,23 +5,19 @@ This package implements the algorithms described in the accompanying paper.
 
 from .guard import GuardLibrary, GuardSet
 from .polytope import Polytope
-from .layers import AbsLayer, AffineLayer, LeakyReLULayer, MaxLayer, PReLULayer, ReLULayer
+from .layers import AffineLayer, ReLULayer, LeakyReLULayer, MaxLayer
 from .network import CPWLNetwork, NetworkBuilder
-from .jit import BranchAndBoundAnalyzer, JITBranchAndBound, MaximizationResult
+from .jit import BranchAndBoundAnalyzer
 
 __all__ = [
     "GuardLibrary",
     "GuardSet",
     "Polytope",
-    "AbsLayer",
     "AffineLayer",
     "ReLULayer",
     "LeakyReLULayer",
-    "PReLULayer",
     "MaxLayer",
     "CPWLNetwork",
     "NetworkBuilder",
     "BranchAndBoundAnalyzer",
-    "JITBranchAndBound",
-    "MaximizationResult",
 ]

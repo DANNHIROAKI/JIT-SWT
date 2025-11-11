@@ -1,12 +1,12 @@
-"""Representation of linear pieces and intermediate JIT states."""
-
+"""Representation of linear pieces arising from CPWL networks."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from dataclasses import dataclass, replace
+from typing import List
+
+import numpy as np
 
 from .guard import GuardSet
-from .linalg import Matrix, Vector, as_vector, matvec
 from .polytope import Polytope
 
 
@@ -16,72 +16,25 @@ class LinearPiece:
 
     guard: GuardSet
     polytope: Polytope
-    matrix: Matrix
-    bias: Vector
+    matrix: np.ndarray
+    bias: np.ndarray
 
     def copy(self) -> "LinearPiece":
-        return LinearPiece(self.guard, self.polytope, tuple(tuple(row) for row in self.matrix), tuple(self.bias))
-
-    def output_dim(self) -> int:
-        return len(self.matrix)
-
-    def input_dim(self) -> int:
-        return len(self.matrix[0]) if self.matrix else 0
-
-    def affine_parameters(self) -> List[Tuple[Vector, float]]:
-        return [(row, float(self.bias[i])) for i, row in enumerate(self.matrix)]
-
-    def evaluate(self, x: Sequence[float]) -> Vector:
-        return tuple(val + self.bias[i] for i, val in enumerate(matvec(self.matrix, as_vector(x))))
-
-
-@dataclass
-class CompilationState:
-    """Represents a partially compiled region of the network.
-
-    The state tracks how far the symbolic compilation progressed (``layer_idx``)
-    together with the affine representation of the currently materialised
-    sub-network.  When ``layer_idx`` equals the number of layers in the network
-    the state can be converted directly into a :class:`LinearPiece` via
-    :meth:`to_piece`.
-    """
-
-    guard: GuardSet
-    polytope: Polytope
-    matrix: Matrix
-    bias: Vector
-    layer_idx: int
-    pending_rows: Tuple[Vector, ...] = ()
-    pending_bias: Tuple[float, ...] = ()
-
-    def copy(self) -> "CompilationState":
-        return CompilationState(
-            self.guard,
-            self.polytope,
-            tuple(tuple(row) for row in self.matrix),
-            tuple(self.bias),
-            self.layer_idx,
-            tuple(self.pending_rows),
-            tuple(self.pending_bias),
+        return LinearPiece(
+            guard=self.guard,
+            polytope=self.polytope,
+            matrix=self.matrix.copy(),
+            bias=self.bias.copy(),
         )
 
     def output_dim(self) -> int:
-        return len(self.matrix)
+        return self.matrix.shape[0]
 
     def input_dim(self) -> int:
-        return len(self.matrix[0]) if self.matrix else 0
+        return self.matrix.shape[1]
 
-    def append_pending(self, row: Vector, bias: float) -> None:
-        rows = list(self.pending_rows)
-        rows.append(tuple(row))
-        self.pending_rows = tuple(rows)
-        biases = list(self.pending_bias)
-        biases.append(float(bias))
-        self.pending_bias = tuple(biases)
+    def affine_parameters(self) -> List[tuple[np.ndarray, float]]:
+        return [(self.matrix[i], float(self.bias[i])) for i in range(self.output_dim())]
 
-    def clear_pending(self) -> None:
-        self.pending_rows = ()
-        self.pending_bias = ()
-
-    def to_piece(self) -> LinearPiece:
-        return LinearPiece(self.guard, self.polytope, self.matrix, self.bias)
+    def evaluate(self, x: np.ndarray) -> np.ndarray:
+        return self.matrix @ x + self.bias
