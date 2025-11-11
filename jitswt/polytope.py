@@ -41,6 +41,24 @@ class Polytope:
         new_b = np.concatenate([self.b, [float(offset)]])
         return Polytope(new_A, new_b)
 
+    def is_feasible(self, atol: float = 1e-9) -> bool:
+        """Return ``True`` iff the polytope contains at least one point."""
+
+        if linprog is not None:
+            objective = np.zeros(self.dimension)
+            bounds = [(None, None)] * self.dimension
+            res = linprog(
+                objective,
+                A_ub=self.A,
+                b_ub=self.b,
+                bounds=bounds,
+                method="highs",
+            )
+            if res.success:
+                return True
+        vertices = self._enumerate_vertices(atol)
+        return len(vertices) > 0
+
     def contains(self, point: Sequence[float], atol: float = 1e-9) -> bool:
         x = np.asarray(list(point), dtype=float)
         if x.shape != (self.dimension,):
