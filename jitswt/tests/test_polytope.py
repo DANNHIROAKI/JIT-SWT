@@ -15,3 +15,10 @@ def test_contains_point():
     poly = Polytope.from_bounds([0, 0], [1, 1])
     assert poly.contains([0.5, 0.5])
     assert not poly.contains([1.5, 0.5])
+
+
+def test_feasibility_checks():
+    base = Polytope.from_bounds([-1, -1], [1, 1])
+    assert base.is_feasible()
+    infeasible = base.intersection_with_halfspace([1.0, 0.0], -2.0)
+    assert not infeasible.is_feasible()

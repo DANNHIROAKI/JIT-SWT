@@ -53,15 +53,18 @@ class ReLULayer:
                     neg_guard = library.register(w, -b)
                     pos_poly = current.polytope.intersection_with_halfspace(-w, b)
                     neg_poly = current.polytope.intersection_with_halfspace(w, -b)
-                    pos_piece = current.copy()
-                    pos_piece.guard = current.guard.add(pos_guard)
-                    pos_piece.polytope = pos_poly
-                    neg_piece = current.copy()
-                    neg_piece.guard = current.guard.add(neg_guard)
-                    neg_piece.polytope = neg_poly
-                    neg_piece.matrix[neuron] = 0.0
-                    neg_piece.bias[neuron] = 0.0
-                    updated.extend([pos_piece, neg_piece])
+                    if pos_poly.is_feasible(atol):
+                        pos_piece = current.copy()
+                        pos_piece.guard = current.guard.add(pos_guard)
+                        pos_piece.polytope = pos_poly
+                        updated.append(pos_piece)
+                    if neg_poly.is_feasible(atol):
+                        neg_piece = current.copy()
+                        neg_piece.guard = current.guard.add(neg_guard)
+                        neg_piece.polytope = neg_poly
+                        neg_piece.matrix[neuron] = 0.0
+                        neg_piece.bias[neuron] = 0.0
+                        updated.append(neg_piece)
             pieces = updated
         return pieces
 
@@ -95,15 +98,18 @@ class LeakyReLULayer:
                     neg_guard = library.register(w, -b)
                     pos_poly = current.polytope.intersection_with_halfspace(-w, b)
                     neg_poly = current.polytope.intersection_with_halfspace(w, -b)
-                    pos_piece = current.copy()
-                    pos_piece.guard = current.guard.add(pos_guard)
-                    pos_piece.polytope = pos_poly
-                    neg_piece = current.copy()
-                    neg_piece.guard = current.guard.add(neg_guard)
-                    neg_piece.polytope = neg_poly
-                    neg_piece.matrix[neuron] *= self.alpha
-                    neg_piece.bias[neuron] *= self.alpha
-                    updated.extend([pos_piece, neg_piece])
+                    if pos_poly.is_feasible(atol):
+                        pos_piece = current.copy()
+                        pos_piece.guard = current.guard.add(pos_guard)
+                        pos_piece.polytope = pos_poly
+                        updated.append(pos_piece)
+                    if neg_poly.is_feasible(atol):
+                        neg_piece = current.copy()
+                        neg_piece.guard = current.guard.add(neg_guard)
+                        neg_piece.polytope = neg_poly
+                        neg_piece.matrix[neuron] *= self.alpha
+                        neg_piece.bias[neuron] *= self.alpha
+                        updated.append(neg_piece)
             pieces = updated
         return pieces
 
@@ -115,12 +121,12 @@ class MaxLayer:
     def apply(self, piece: LinearPiece, library: GuardLibrary, atol: float = 1e-9) -> List[LinearPiece]:
         if any(len(group) != 2 for group in self.groups):
             raise NotImplementedError("MaxLayer currently supports pairwise maxima only")
-        pieces = [piece]
-        for group_idx, group in enumerate(self.groups):
+        selections: List[tuple[LinearPiece, List[int]]] = [(piece, [])]
+        for group in self.groups:
             if not group:
                 raise ValueError("max group must be non-empty")
-            updated: List[LinearPiece] = []
-            for current in pieces:
+            updated: List[tuple[LinearPiece, List[int]]] = []
+            for current, chosen in selections:
                 i, j = group
                 w_i = current.matrix[i].copy()
                 b_i = float(current.bias[i])
@@ -129,32 +135,32 @@ class MaxLayer:
                 lb_i, ub_i = current.polytope.bounds_on_linear_form(w_i, b_i)
                 lb_j, ub_j = current.polytope.bounds_on_linear_form(w_j, b_j)
                 if lb_i >= ub_j - atol:
-                    new_piece = current.copy()
-                    new_piece.matrix[group_idx] = w_i
-                    new_piece.bias[group_idx] = b_i
-                    updated.append(new_piece)
-                elif lb_j >= ub_i - atol:
-                    new_piece = current.copy()
-                    new_piece.matrix[group_idx] = w_j
-                    new_piece.bias[group_idx] = b_j
-                    updated.append(new_piece)
-                else:
-                    diff = w_i - w_j
-                    offset = b_j - b_i
-                    pos_guard = library.register(-diff, -offset)
-                    neg_guard = library.register(diff, offset)
-                    pos_poly = current.polytope.intersection_with_halfspace(-diff, -offset)
-                    neg_poly = current.polytope.intersection_with_halfspace(diff, offset)
+                    updated.append((current, chosen + [i]))
+                    continue
+                if lb_j >= ub_i - atol:
+                    updated.append((current, chosen + [j]))
+                    continue
+                diff = w_i - w_j
+                offset = b_j - b_i
+                pos_guard = library.register(-diff, -offset)
+                neg_guard = library.register(diff, offset)
+                pos_poly = current.polytope.intersection_with_halfspace(-diff, -offset)
+                if pos_poly.is_feasible(atol):
                     pos_piece = current.copy()
                     pos_piece.guard = current.guard.add(pos_guard)
                     pos_piece.polytope = pos_poly
-                    pos_piece.matrix[group_idx] = w_i
-                    pos_piece.bias[group_idx] = b_i
+                    updated.append((pos_piece, chosen + [i]))
+                neg_poly = current.polytope.intersection_with_halfspace(diff, offset)
+                if neg_poly.is_feasible(atol):
                     neg_piece = current.copy()
                     neg_piece.guard = current.guard.add(neg_guard)
                     neg_piece.polytope = neg_poly
-                    neg_piece.matrix[group_idx] = w_j
-                    neg_piece.bias[group_idx] = b_j
-                    updated.extend([pos_piece, neg_piece])
-            pieces = updated
-        return pieces
+                    updated.append((neg_piece, chosen + [j]))
+            selections = updated
+        result: List[LinearPiece] = []
+        for current, chosen in selections:
+            indices = np.array(chosen, dtype=int)
+            matrix = current.matrix[indices]
+            bias = current.bias[indices]
+            result.append(LinearPiece(current.guard, current.polytope, matrix, bias))
+        return result

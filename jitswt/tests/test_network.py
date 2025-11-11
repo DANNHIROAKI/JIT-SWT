@@ -13,6 +13,14 @@ def build_simple_network():
     return builder.build(domain)
 
 
+def build_max_network():
+    builder = NetworkBuilder(input_dim=2)
+    builder.add_affine(np.eye(2), np.zeros(2))
+    builder.add_max_pairs([(0, 1)])
+    domain = Polytope.from_bounds([-1, -1], [1, 1])
+    return builder.build(domain)
+
+
 def test_evaluate_matches_numpy():
     net = build_simple_network()
     x = np.array([0.5, -0.2])
@@ -55,3 +63,20 @@ def test_piecewise_lipschitz():
     analyzer = BranchAndBoundAnalyzer(pieces)
     lipschitz = analyzer.piecewise_lipschitz(2.0)
     assert lipschitz >= 0
+
+
+def test_max_layer_piece_shapes():
+    net = build_max_network()
+    pieces = net.enumerate_pieces()
+    assert pieces
+    for piece in pieces:
+        assert piece.matrix.shape[0] == 1
+        assert piece.bias.shape == (1,)
+    point = np.array([0.3, -0.2])
+    expected = net.evaluate(point)
+    for piece in pieces:
+        if piece.polytope.contains(point):
+            assert np.allclose(piece.evaluate(point), expected)
+            break
+    else:
+        raise AssertionError("point not covered by any piece")
